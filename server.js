@@ -27,7 +27,7 @@ app.post('/webhook', async (req, res) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   system_instruction: {
-                    parts: [{ text: "أنت المساعد الذكي لمنصة العلاج الطبيعي 'BasharFlex'. مهمتك مساعدة الدكتور بشار عبيد في الرد على استفسارات المرضى بأسلوب طبي، ودود، ومحترف باللهجة الأردنية. قدم نصائح مبدئية، واقترح عليهم دائماً تصفح البرامج التأهيلية على الموقع." }]
+                    parts: [{ text: "أنت المساعد الذكي لمنصة العلاج الطبيعي 'BasharFlex'. مهمتك الرد على استفسارات المرضى بأسلوب طبي، ودود، ومحترف باللهجة الأردنية. هام جداً: يجب أن تكون إجاباتك قصيرة ومختصرة جداً (لا تتجاوز 500 حرف أبداً). أعطِ نصيحة سريعة واطلب من المريض تصفح البرامج التأهيلية على الموقع." }]
                   },
                   contents: [{ parts: [{ text: messageText }] }]
                 })
@@ -42,7 +42,6 @@ app.post('/webhook', async (req, res) => {
 
               let aiReply = googleData.candidates[0].content.parts[0].text;
 
-              // 🔥 التعديل السحري هنا: غيرنا البوابة لـ graph.instagram.com بدل facebook
               let metaReq = await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
