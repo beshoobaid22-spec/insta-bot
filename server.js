@@ -12,7 +12,6 @@ app.get('/webhook', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   let body = req.body;
-  console.log('📥 وصل إشعار من ميتا:', JSON.stringify(body, null, 2));
   
   if (body.object === 'instagram') {
     for (let entry of body.entry) {
@@ -23,20 +22,29 @@ app.post('/webhook', async (req, res) => {
             let messageText = messaging.message.text;
 
             try {
+              // 1. طلب الرد من الذكاء الاصطناعي (جوجل)
               let googleReq = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${process.env.GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   system_instruction: {
-                    parts: [{ text: "أنت المساعد الذكي لمنصة العلاج الطبيعي 'BasharFlex' الخاصة بالدكتور بشار عبيد. مهمتك الرد على استفسارات المرضى بأسلوب طبي، ودود، ومحترف باللهجة الأردنية. قدم نصائح مبدئية، واقترح عليهم دائماً تصفح البرامج التأهيلية على الموقع أو حجز موعد للتقييم الدقيق." }]
+                    parts: [{ text: "أنت المساعد الذكي لمنصة العلاج الطبيعي 'BasharFlex'. مهمتك مساعدة الدكتور بشار عبيد في الرد على استفسارات المرضى بأسلوب طبي، ودود، ومحترف باللهجة الأردنية. قدم نصائح مبدئية، واقترح عليهم دائماً تصفح البرامج التأهيلية على الموقع." }]
                   },
                   contents: [{ parts: [{ text: messageText }] }]
                 })
               });
               
               let googleData = await googleReq.json();
+              
+              // 2. فحص رد جوجل وطباعة الخطأ إن وُجد
+              if (googleData.error || !googleData.candidates) {
+                 console.error('❌ خطأ من جوجل:', JSON.stringify(googleData, null, 2));
+                 continue; 
+              }
+
               let aiReply = googleData.candidates[0].content.parts[0].text;
 
+              // 3. إرسال الرد للمريض عبر ميتا (إنستغرام)
               let metaReq = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -44,10 +52,14 @@ app.post('/webhook', async (req, res) => {
               });
               
               let metaResponse = await metaReq.json();
-              console.log('⚠️ رد ميتا على طلب الإرسال:', JSON.stringify(metaResponse));
+              if(metaResponse.error) {
+                 console.log('⚠️ خطأ من ميتا أثناء الإرسال:', JSON.stringify(metaResponse));
+              } else {
+                 console.log('✅ تم إرسال الرد بنجاح!');
+              }
 
             } catch (error) {
-              console.error('❌ خطأ عام:', error);
+              console.error('❌ خطأ برمجي عام:', error);
             }
           }
         }
