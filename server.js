@@ -85,14 +85,24 @@ app.post('/webhook', async (req, res) => {
             let senderId = messaging.sender.id;
             let messageText = messaging.message.text;
 
+            // 🛑 حماية من الصور والرسائل الصوتية
+            if (!messageText) {
+                try {
+                    await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ recipient: { id: senderId }, message: { text: "عذراً، أنا بقدر أجاوب على الرسائل النصية فقط 😅 يرجى كتابة استفسارك عشان أقدر أساعدك." } })
+                    });
+                } catch(e) { console.log('خطأ بإرسال رسالة التنبيه'); }
+                continue; 
+            }
+
             try {
               let googleReq = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${process.env.GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  system_instruction: {
-                    parts: [{ text: systemInstruction }]
-                  },
+                  system_instruction: { parts: [{ text: systemInstruction }] },
                   contents: [{ parts: [{ text: messageText }] }]
                 })
               });
@@ -106,6 +116,33 @@ app.post('/webhook', async (req, res) => {
 
               let aiReply = googleData.candidates[0].content.parts[0].text;
 
+              let metaReq = await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recipient: { id: senderId }, message: { text: aiReply } })
+              });
+              
+              let metaResponse = await metaReq.json();
+              if(metaResponse.error) {
+                 console.log('⚠️ خطأ من ميتا أثناء الإرسال:', JSON.stringify(metaResponse));
+              } else {
+                 console.log('✅ تم إرسال الرد بنجاح!');
+              }
+
+            } catch (error) {
+              console.error('❌ خطأ برمجي عام:', error);
+            }
+          }
+        }
+      }
+    }
+    res.status(200).send('EVENT_RECEIVED');
+  } else {
+    res.sendStatus(404);
+  }
+});
+
+app.listen(process.env.PORT || 3000, () => console.log('Bot is ready!'));
               let metaReq = await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
