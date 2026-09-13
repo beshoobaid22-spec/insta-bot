@@ -13,9 +13,10 @@ NEW RULES (NEVER BREAK THESE):
 4. If the user mentions "رقبة" (neck), offer the Neck Package: https://basharflex.com/neck-package
 5. If the user mentions "ركبة" (knee), offer the Knee Package: https://basharflex.com/knee-package
 6. If the user mentions "كتف" (shoulder), offer the Shoulder Package: https://basharflex.com/shoulder-package
-7. If the user asks for "استشارة", "موعد", or wants to talk to the Doctor, offer the Consultation: https://basharflex.com/vip-consultation
-8. NEVER use brackets "[" or "]" or parentheses "(" or ")" for links. Provide the raw URL on a completely separate line.
-9. Maximum 2 short sentences per reply.`;
+7.If the user mentions "أبهر" (Abhar), "وثاب" (Wathab), or "أعلى الظهر" (Upper Back), IMMEDIATELY sympathize and offer the Upper Back Package: https://basharflex.com/upper-back-package
+8. If the user asks for "استشارة", "موعد", or wants to talk to the Doctor, offer the Consultation: https://basharflex.com/vip-consultation
+9. NEVER use brackets "[" or "]" or parentheses "(" or ")" for links. Provide the raw URL on a completely separate line.
+10. Maximum 2 short sentences per reply.`;
 
 app.get('/webhook', (req, res) => {
   if (req.query['hub.verify_token'] === 'FlexBot2026') {
