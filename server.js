@@ -33,63 +33,65 @@ app.post('/webhook', async (req, res) => {
     for (let entry of body.entry) {
       if (entry.messaging) {
         for (let messaging of entry.messaging) {
-          if (messaging.message && !messaging.message.is_echo) {
-            let senderId = messaging.sender.id;
-            let messageText = messaging.message.text;
+          // الفلتر الجديد: يتجاهل أي إشعارات قراءة أو رسائل غير صالحة فوراً
+          if (!messaging.message || messaging.message.is_echo) continue;
 
-            if (!messageText) {
-                try {
-                    await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ recipient: { id: senderId }, message: { text: "عذراً، أنا بقدر أجاوب على الرسائل النصية فقط 😅 يرجى كتابة استفسارك عشان أقدر أساعدك." } })
-                    });
-                } catch(e) { console.log('خطأ بإرسال رسالة التنبيه'); }
-                continue; 
+          let senderId = messaging.sender.id;
+          // التأكد من وجود النص وتنظيفه من الفراغات
+          let messageText = messaging.message.text ? messaging.message.text.trim() : "";
+
+          if (!messageText) {
+              try {
+                  await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ recipient: { id: senderId }, message: { text: "عذراً، أنا بقدر أجاوب على الرسائل النصية فقط 😅 يرجى كتابة استفسارك عشان أقدر أساعدك." } })
+                  });
+              } catch(e) { console.log('خطأ بإرسال رسالة التنبيه'); }
+              continue; 
+          }
+
+          try {
+            // الاتصال بمنصة Groq 
+            let groqReq = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: { 
+                  'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                  'Content-Type': 'application/json' 
+              },
+              body: JSON.stringify({
+                model: "llama3-8b-8192", // إعادة الموديل القديم الذي يعمل على حسابك
+                messages: [
+                    { role: "system", content: systemInstruction },
+                    { role: "user", content: messageText }
+                ]
+              })
+            });
+            
+            let groqData = await groqReq.json();
+            
+            if (groqData.error || !groqData.choices || groqData.choices.length === 0) {
+               console.error('❌ خطأ من Groq:', JSON.stringify(groqData, null, 2));
+               continue; 
             }
 
-            try {
-              // الاتصال بمنصة Groq السريعة
-              let groqReq = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-                    'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({
-                  model: "llama-3.1-8b-instant", // النموذج المجاني الأسرع
-                  messages: [
-                      { role: "system", content: systemInstruction },
-                      { role: "user", content: messageText }
-                  ]
-                })
-              });
-              
-              let groqData = await groqReq.json();
-              
-              if (groqData.error || !groqData.choices || groqData.choices.length === 0) {
-                 console.error('❌ خطأ من Groq:', JSON.stringify(groqData, null, 2));
-                 continue; 
-              }
+            let aiReply = groqData.choices[0].message.content;
 
-              let aiReply = groqData.choices[0].message.content;
-
-              let metaReq = await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ recipient: { id: senderId }, message: { text: aiReply } })
-              });
-              
-              let metaResponse = await metaReq.json();
-              if(metaResponse.error) {
-                 console.log('⚠️ خطأ من ميتا أثناء الإرسال:', JSON.stringify(metaResponse));
-              } else {
-                 console.log('✅ تم إرسال الرد بنجاح!');
-              }
-
-            } catch (error) {
-              console.error('❌ خطأ برمجي عام:', error);
+            let metaReq = await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ recipient: { id: senderId }, message: { text: aiReply } })
+            });
+            
+            let metaResponse = await metaReq.json();
+            if(metaResponse.error) {
+               console.log('⚠️ خطأ من ميتا أثناء الإرسال:', JSON.stringify(metaResponse));
+            } else {
+               console.log('✅ تم إرسال الرد بنجاح!');
             }
+
+          } catch (error) {
+            console.error('❌ خطأ برمجي عام:', error);
           }
         }
       }
@@ -101,4 +103,4 @@ app.post('/webhook', async (req, res) => {
 });
 
 app.listen(process.env.PORT || 3000, () => console.log('Bot is ready!'));
-module.exports = app; // سطر أساسي لعمل البوت على Vercel بدون توقف
+module.exports = app;
