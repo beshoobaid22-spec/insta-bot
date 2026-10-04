@@ -57,7 +57,7 @@ app.post('/webhook', async (req, res) => {
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({
-                  model: "llama3-8b-8192", // النموذج المجاني الأسرع
+                  model: "llama-3.1-8b-instant", // النموذج المجاني الأسرع
                   messages: [
                       { role: "system", content: systemInstruction },
                       { role: "user", content: messageText }
