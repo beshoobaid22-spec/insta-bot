@@ -2,7 +2,6 @@ const express = require('express');
 const app = express();
 app.use(express.json());
 
-// تعليمات الذكاء الاصطناعي المعدلة (بدون أسئلة غبية)
 const systemInstruction = `You are the elite Virtual Assistant for Dr. Bashar Obeid at "BasharFlex". Converse naturally in friendly Jordanian Arabic.
 CRITICAL LIMITATION: You are STATELESS. You do not remember previous messages. You MUST resolve the user's query based ONLY on their current message.
 
@@ -33,11 +32,9 @@ app.post('/webhook', async (req, res) => {
     for (let entry of body.entry) {
       if (entry.messaging) {
         for (let messaging of entry.messaging) {
-          // الفلتر الجديد: يتجاهل أي إشعارات قراءة أو رسائل غير صالحة فوراً
           if (!messaging.message || messaging.message.is_echo) continue;
 
           let senderId = messaging.sender.id;
-          // التأكد من وجود النص وتنظيفه من الفراغات
           let messageText = messaging.message.text ? messaging.message.text.trim() : "";
 
           if (!messageText) {
@@ -47,12 +44,11 @@ app.post('/webhook', async (req, res) => {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ recipient: { id: senderId }, message: { text: "عذراً، أنا بقدر أجاوب على الرسائل النصية فقط 😅 يرجى كتابة استفسارك عشان أقدر أساعدك." } })
                   });
-              } catch(e) { console.log('خطأ بإرسال رسالة التنبيه'); }
+              } catch(e) {}
               continue; 
           }
 
           try {
-            // الاتصال بمنصة Groq 
             let groqReq = await fetch('https://api.groq.com/openai/v1/chat/completions', {
               method: 'POST',
               headers: { 
@@ -60,7 +56,7 @@ app.post('/webhook', async (req, res) => {
                   'Content-Type': 'application/json' 
               },
               body: JSON.stringify({
-                model: "llama3-8b-8192", // إعادة الموديل القديم الذي يعمل على حسابك
+                model: "llama-3.3-70b-versatile", // الموديل الأحدث والمستقر
                 messages: [
                     { role: "system", content: systemInstruction },
                     { role: "user", content: messageText }
@@ -68,13 +64,14 @@ app.post('/webhook', async (req, res) => {
               })
             });
             
-            let groqData = await groqReq.json();
-            
-            if (groqData.error || !groqData.choices || groqData.choices.length === 0) {
-               console.error('❌ خطأ من Groq:', JSON.stringify(groqData, null, 2));
-               continue; 
+            // الفلتر الجديد لكشف الأخطاء بدقة
+            if (!groqReq.ok) {
+                let errorText = await groqReq.text();
+                console.error('❌ خطأ تفصيلي من Groq:', errorText);
+                continue;
             }
 
+            let groqData = await groqReq.json();
             let aiReply = groqData.choices[0].message.content;
 
             let metaReq = await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
@@ -85,7 +82,7 @@ app.post('/webhook', async (req, res) => {
             
             let metaResponse = await metaReq.json();
             if(metaResponse.error) {
-               console.log('⚠️ خطأ من ميتا أثناء الإرسال:', JSON.stringify(metaResponse));
+               console.error('⚠️ خطأ من ميتا أثناء الإرسال:', JSON.stringify(metaResponse));
             } else {
                console.log('✅ تم إرسال الرد بنجاح!');
             }
