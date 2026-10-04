@@ -49,23 +49,30 @@ app.post('/webhook', async (req, res) => {
             }
 
             try {
-              let googleReq = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${process.env.GEMINI_KEY}`, {
+              // الاتصال بمنصة Groq السريعة
+              let groqReq = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                    'Content-Type': 'application/json' 
+                },
                 body: JSON.stringify({
-                  system_instruction: { parts: [{ text: systemInstruction }] },
-                  contents: [{ parts: [{ text: messageText }] }]
+                  model: "llama3-8b-8192", // النموذج المجاني الأسرع
+                  messages: [
+                      { role: "system", content: systemInstruction },
+                      { role: "user", content: messageText }
+                  ]
                 })
               });
               
-              let googleData = await googleReq.json();
+              let groqData = await groqReq.json();
               
-              if (googleData.error || !googleData.candidates) {
-                 console.error('❌ خطأ من جوجل:', JSON.stringify(googleData, null, 2));
+              if (groqData.error || !groqData.choices || groqData.choices.length === 0) {
+                 console.error('❌ خطأ من Groq:', JSON.stringify(groqData, null, 2));
                  continue; 
               }
 
-              let aiReply = googleData.candidates[0].content.parts[0].text;
+              let aiReply = groqData.choices[0].message.content;
 
               let metaReq = await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
                 method: 'POST',
@@ -94,3 +101,4 @@ app.post('/webhook', async (req, res) => {
 });
 
 app.listen(process.env.PORT || 3000, () => console.log('Bot is ready!'));
+module.exports = app; // سطر أساسي لعمل البوت على Vercel بدون توقف
