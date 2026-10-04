@@ -12,7 +12,7 @@ NEW RULES (NEVER BREAK THESE):
 4. If the user mentions "رقبة" (neck), offer the Neck Package: https://basharflex.com/neck-package
 5. If the user mentions "ركبة" (knee), offer the Knee Package: https://basharflex.com/knee-package
 6. If the user mentions "كتف" (shoulder), offer the Shoulder Package: https://basharflex.com/shoulder-package
-7.If the user mentions "أبهر" (Abhar), "وثاب" (Wathab), or "أعلى الظهر" (Upper Back), IMMEDIATELY sympathize and offer the Upper Back Package: https://basharflex.com/upper-back-package
+7. If the user mentions "أبهر" (Abhar), "وثاب" (Wathab), or "أعلى الظهر" (Upper Back), IMMEDIATELY sympathize and offer the Upper Back Package: https://basharflex.com/upper-back-package
 8. If the user asks for "استشارة", "موعد", or wants to talk to the Doctor, offer the Consultation: https://basharflex.com/vip-consultation
 9. NEVER use brackets "[" or "]" or parentheses "(" or ")" for links. Provide the raw URL on a completely separate line.
 10. Maximum 2 short sentences per reply.`;
@@ -37,54 +37,54 @@ app.post('/webhook', async (req, res) => {
           let senderId = messaging.sender.id;
           let messageText = messaging.message.text ? messaging.message.text.trim() : "";
 
-          if (!messageText) {
-              try {
-                  await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ recipient: { id: senderId }, message: { text: "عذراً، أنا بقدر أجاوب على الرسائل النصية فقط 😅 يرجى كتابة استفسارك عشان أقدر أساعدك." } })
-                  });
-              } catch(e) {}
-              continue; 
-          }
+          if (!messageText) continue;
 
           try {
-            let groqReq = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            // الاتصال المباشر بـ Google Gemini API
+            const apiKey = process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY;
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/Gemini 3.1 Flash Lite:generateContent?key=${apiKey}`;
+
+            let geminiReq = await fetch(geminiUrl, {
               method: 'POST',
-              headers: { 
-                  'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-                  'Content-Type': 'application/json' 
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                model: "llama-3.3-70b-versatile", // الموديل الأحدث والمستقر
-                messages: [
-                    { role: "system", content: systemInstruction },
-                    { role: "user", content: messageText }
-                ]
+                system_instruction: {
+                  parts: [{ text: systemInstruction }]
+                },
+                contents: [
+                  {
+                    role: "user",
+                    parts: [{ text: messageText }]
+                  }
+                ],
+                generationConfig: {
+                  maxOutputTokens: 200,
+                  temperature: 0.4
+                }
               })
             });
-            
-            // الفلتر الجديد لكشف الأخطاء بدقة
-            if (!groqReq.ok) {
-                let errorText = await groqReq.text();
-                console.error('❌ خطأ تفصيلي من Groq:', errorText);
-                continue;
+
+            let geminiData = await geminiReq.json();
+
+            if (!geminiReq.ok || !geminiData.candidates || geminiData.candidates.length === 0) {
+              console.error('❌ خطأ تفصيلي من Gemini:', JSON.stringify(geminiData));
+              continue;
             }
 
-            let groqData = await groqReq.json();
-            let aiReply = groqData.choices[0].message.content;
+            let aiReply = geminiData.candidates[0].content.parts[0].text;
 
+            // إرسال الرد للمستخدم عبر إنستغرام
             let metaReq = await fetch(`https://graph.instagram.com/v20.0/me/messages?access_token=${process.env.IG_TOKEN}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ recipient: { id: senderId }, message: { text: aiReply } })
             });
-            
+
             let metaResponse = await metaReq.json();
-            if(metaResponse.error) {
-               console.error('⚠️ خطأ من ميتا أثناء الإرسال:', JSON.stringify(metaResponse));
+            if (metaResponse.error) {
+              console.error('⚠️ خطأ من ميتا أثناء الإرسال:', JSON.stringify(metaResponse));
             } else {
-               console.log('✅ تم إرسال الرد بنجاح!');
+              console.log('✅ تم إرسال الرد بنجاح!');
             }
 
           } catch (error) {
