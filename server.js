@@ -2,7 +2,6 @@ const express = require('express');
 const app = express();
 app.use(express.json());
 
-// تعليمات الذكاء الاصطناعي المعدلة (بدون أسئلة غبية)
 const systemInstruction = `You are the elite Virtual Assistant for Dr. Bashar Obeid at "BasharFlex". Converse naturally in friendly Jordanian Arabic.
 CRITICAL LIMITATION: You are STATELESS. You do not remember previous messages. You MUST resolve the user's query based ONLY on their current message.
 
@@ -35,7 +34,7 @@ app.post('/webhook', async (req, res) => {
         for (let messaging of entry.messaging) {
           if (messaging.message && !messaging.message.is_echo) {
             let senderId = messaging.sender.id;
-            let messageText = messaging.message.text;
+            let messageText = messaging.message.text ? messaging.message.text.trim() : "";
 
             if (!messageText) {
                 try {
@@ -49,19 +48,22 @@ app.post('/webhook', async (req, res) => {
             }
 
             try {
-              let googleReq = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${process.env.GEMINI_KEY}`, {
+              // قراءة المفتاح بأي اسم تم حفظه فيه في Vercel
+              const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY || process.env.GROQ_API_KEY;
+              
+              let googleReq = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   system_instruction: { parts: [{ text: systemInstruction }] },
-                  contents: [{ parts: [{ text: messageText }] }]
+                  contents: [{ role: "user", parts: [{ text: messageText }] }] // تمت إضافة الـ role هنا
                 })
               });
               
               let googleData = await googleReq.json();
               
-              if (googleData.error || !googleData.candidates) {
-                 console.error('❌ خطأ من جوجل:', JSON.stringify(googleData, null, 2));
+              if (!googleReq.ok || googleData.error || !googleData.candidates) {
+                 console.error('❌ خطأ تفصيلي من جوجل:', JSON.stringify(googleData, null, 2));
                  continue; 
               }
 
@@ -94,3 +96,4 @@ app.post('/webhook', async (req, res) => {
 });
 
 app.listen(process.env.PORT || 3000, () => console.log('Bot is ready!'));
+module.exports = app;
